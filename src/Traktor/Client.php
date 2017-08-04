@@ -22,15 +22,9 @@ class Client
     const TRAKT_API_ENDPOINT = 'http://api.trakt.tv';
 
     /**
-     * Constant containing the desired return format from the API. Currently,
-     * Trakt only supports JSON.
-     */
-    const RETURN_FORMAT = 'json';
-
-    /**
      * @var string
      */
-    protected $apiKey = '';
+    protected $apiKey = null;
 
     /**
      * @var GuzzleHttp\Client
@@ -105,15 +99,14 @@ class Client
      * @param  array   $params
      * @return string
      */
-    protected function assembleGetRequestTarget($method, $params)
+    protected function assembleGetRequestTarget($method, $params = [])
     {
         $method = preg_replace('/\./', '/', $method);
-        $params = implode('/', $params);
+        $params = http_build_query($params);
 
         $target = self::TRAKT_API_ENDPOINT
-                    . '/' . $method . '.' . self::RETURN_FORMAT
-                    . '/' . $this->apiKey
-                    . '/' . $params;
+                    . '/' . $method 
+                    . '?' . $params;
 
         return $target;
     }
@@ -126,7 +119,12 @@ class Client
      */
     protected function performGetRequest($target)
     {
-        return $this->client->get($target);
+		$headers = [
+			'Content-Type' => 'application/json',
+			'trakt-api-version' => 2,
+			'trakt-api-key' => $this->getApiKey(),
+		];
+		return $this->client->get($target, ['headers' => $headers]);
     }
 
     /**
@@ -136,12 +134,12 @@ class Client
      * @param  GuzzleHttp\Message\ResponseInterface
      * @return mixed
      */
-    protected function parseResponse(GuzzleResponse $response)
+    protected function parseResponse(\GuzzleHttp\Psr7\Response $response)
     {
         $this->checkResponseErrors($response);
 
         try {
-            $decodedBody = $response->json(['object' => true]);
+			$decodedBody = json_decode($response->getBody()->getContents());
         } catch (GuzzleHttp\Exception\ParseException $e) {
             throw new RequestException('Unable to parse response: '
                 . $response->getBody());
